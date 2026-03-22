@@ -28,28 +28,69 @@ def load_seen_jobs():
 def save_new_job(link):
     with open(DB_FILE, "a") as f: f.write(link + "\n")
 
-def post_to_facebook(job_title, job_url):
-    """ Facebook එකට පෝස්ට් එක යවන Function එක """
+def post_to_facebook(job_title, job_url, image_url=None):
+    """ Facebook එකට පෝස්ට් එක (පින්තූරය සමඟ හෝ නැතිව) යවන Function එක """
     post_message = f"📢 අලුත්ම රැකියා අවස්ථාවක්! \n\n📌 තනතුර: {job_title}\n🔗 වැඩි විස්තර සහ අයදුම් කිරීමට: {job_url}{HASHTAGS}"
     
-    url = f"https://graph.facebook.com/v25.0/{PAGE_ID}/feed"
-    payload = {
-        'message': post_message,
-        'access_token': PAGE_ACCESS_TOKEN
-    }
+    # පින්තූරයක් තියෙනවා නම් පාවිච්චි කරන්නේ /photos endpoint එක
+    if image_url:
+        url = f"https://graph.facebook.com/v25.0/{PAGE_ID}/photos"
+        payload = {
+            'url': image_url,
+            'caption': post_message,
+            'access_token': PAGE_ACCESS_TOKEN
+        }
+    else:
+        # පින්තූරයක් නැත්නම් සාමාන්‍ය විදියට /feed එකට දානවා
+        url = f"https://graph.facebook.com/v25.0/{PAGE_ID}/feed"
+        payload = {
+            'message': post_message,
+            'access_token': PAGE_ACCESS_TOKEN
+        }
     
     try:
         response = requests.post(url, data=payload)
+        res_data = response.json()
         if response.status_code == 200:
             print(f"🎯 සාර්ථකව Facebook පෝස්ට් එක දැම්මා: {job_title}")
         else:
-            print(f"❌ FB Error: {response.json().get('error', {}).get('message')}")
+            print(f"❌ FB Error: {res_data.get('error', {}).get('message')}")
     except Exception as e:
         print(f"⚠️ FB Connection Error: {str(e)}")
+
+def get_job_flyer(driver, job_link):
+    """ ජොබ් පේජ් එකට ගිහින් Flyer එක (Image) හොයාගන්නා හැටි """
+    try:
+        driver.get(job_link)
+        time.sleep(3) # පින්තූර ලෝඩ් වීමට වෙලාව දීම
+        
+        # බ්ලොග් වල සහ අනෙක් සයිට් වල ජොබ් පෝස්ටර් එක සාමාන්‍යයෙන් තියෙන්නේ මේ වගේ තැන්වල
+        img_elements = driver.find_elements(By.TAG_NAME, "img")
+        
+        image_url = None
+        for img in img_elements:
+            src = img.get_attribute("src")
+            # සාමාන්‍යයෙන් ජොබ් පෝස්ටර් එකක 'blogspot', 'job', 'flyer' වගේ වචන තියෙන්න පුළුවන්
+            if src and ("bp.blogspot.com" in src or "job" in src.lower()):
+                # පින්තූරේ ලොකු එකක්ද බලමු (ඉතා කුඩා අයිකන් මඟ හැරීමට)
+                width = int(img.get_attribute("naturalWidth") or 0)
+                if width > 200: 
+                    image_url = src
+                    break
+        
+        # කිසිවක් හමු නොවුණහොත් පළමු පින්තූරය ගන්න
+        if not image_url and img_elements:
+             image_url = img_elements[0].get_attribute("src")
+
+        return image_url
+    except:
+        return None
 
 def get_driver():
     chrome_options = Options()
     chrome_options.add_argument("--headless") # පසුබිමේ රන් වීමට
+    chrome_options.add_argument("--no-sandbox")
+    chrome_options.add_argument("--disable-dev-shm-usage")
     chrome_options.add_argument("--disable-blink-features=AutomationControlled")
     chrome_options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
     return webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=chrome_options)
@@ -81,12 +122,17 @@ def scrape_site(driver, url, name, seen_jobs):
 
         if found_jobs:
             print(f"✅ අලුත් ජොබ් {len(found_jobs[:2])}ක් හමු වුණා!")
-            # ඕනෑවට වඩා පෝස්ට් වැටීම වැළැක්වීමට එක සැරයකට උපරිම 2ක් පෝස්ට් කරයි
             for job in found_jobs[:2]:
-                post_to_facebook(job['title'], job['link'])
+                # --- අලුත් කොටස: Flyer එක සොයා ගැනීම ---
+                print(f"🖼️ {job['title']} සඳහා පෝස්ටරය සොයමින්...")
+                flyer_url = get_job_flyer(driver, job['link'])
+                
+                # පෝස්ට් එක දැමීම
+                post_to_facebook(job['title'], job['link'], flyer_url)
+                
                 save_new_job(job['link'])
                 seen_jobs.append(job['link'])
-                time.sleep(5) # පෝස්ට් දෙකක් අතර තත්පර 5ක විවේකයක්
+                time.sleep(5)
         else:
             print("😴 අලුත් ජොබ් කිසිවක් නැත.")
 
