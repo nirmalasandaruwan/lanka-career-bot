@@ -32,7 +32,7 @@ def post_to_facebook(job_title, job_url, image_url=None):
     """ Facebook එකට පෝස්ට් එක (පින්තූරය සමඟ හෝ නැතිව) යවන Function එක """
     post_message = f"📢 අලුත්ම රැකියා අවස්ථාවක්! \n\n📌 තනතුර: {job_title}\n🔗 වැඩි විස්තර සහ අයදුම් කිරීමට: {job_url}{HASHTAGS}"
     
-    # පින්තූරයක් තියෙනවා නම් පාවිච්චි කරන්නේ /photos endpoint එක
+    # පින්තූරයක් ඇත්නම් සහ එය පෝස්ටරයක් ලෙස හඳුනාගත හැකිනම් පමණක් /photos භාවිතා කරයි
     if image_url:
         url = f"https://graph.facebook.com/v25.0/{PAGE_ID}/photos"
         payload = {
@@ -41,10 +41,11 @@ def post_to_facebook(job_title, job_url, image_url=None):
             'access_token': PAGE_ACCESS_TOKEN
         }
     else:
-        # පින්තූරයක් නැත්නම් සාමාන්‍ය විදියට /feed එකට දානවා
+        # පින්තූරයක් නැතිවිට සාමාන්‍ය Feed එකට link එකක් ලෙස යවයි (මෙය Timeline එකේ හොඳින් පෙනේ)
         url = f"https://graph.facebook.com/v25.0/{PAGE_ID}/feed"
         payload = {
             'message': post_message,
+            'link': job_url, # මෙතන ලින්ක් එක දාන නිසා ලස්සන preview එකක් වැටෙයි
             'access_token': PAGE_ACCESS_TOKEN
         }
     
@@ -59,36 +60,34 @@ def post_to_facebook(job_title, job_url, image_url=None):
         print(f"⚠️ FB Connection Error: {str(e)}")
 
 def get_job_flyer(driver, job_link):
-    """ ජොබ් පේජ් එකට ගිහින් Flyer එක (Image) හොයාගන්නා හැටි """
+    """ ජොබ් පේජ් එකට ගිහින් නියම Flyer එක (පොඩි ලෝගෝ නොවී) හොයාගන්නා හැටි """
     try:
         driver.get(job_link)
-        time.sleep(3) # පින්තූර ලෝඩ් වීමට වෙලාව දීම
+        time.sleep(4) # පින්තූර ලෝඩ් වීමට වැඩිපුර වෙලාවක් දීම
         
-        # බ්ලොග් වල සහ අනෙක් සයිට් වල ජොබ් පෝස්ටර් එක සාමාන්‍යයෙන් තියෙන්නේ මේ වගේ තැන්වල
         img_elements = driver.find_elements(By.TAG_NAME, "img")
         
-        image_url = None
+        best_image = None
+        max_width = 0
+
         for img in img_elements:
             src = img.get_attribute("src")
-            # සාමාන්‍යයෙන් ජොබ් පෝස්ටර් එකක 'blogspot', 'job', 'flyer' වගේ වචන තියෙන්න පුළුවන්
-            if src and ("bp.blogspot.com" in src or "job" in src.lower()):
-                # පින්තූරේ ලොකු එකක්ද බලමු (ඉතා කුඩා අයිකන් මඟ හැරීමට)
-                width = int(img.get_attribute("naturalWidth") or 0)
-                if width > 200: 
-                    image_url = src
-                    break
-        
-        # කිසිවක් හමු නොවුණහොත් පළමු පින්තූරය ගන්න
-        if not image_url and img_elements:
-             image_url = img_elements[0].get_attribute("src")
-
-        return image_url
+            # පින්තූරයේ සැබෑ පළල ලබා ගැනීම
+            width = int(img.get_attribute("naturalWidth") or 0)
+            
+            # සාමාන්‍යයෙන් පෝස්ටර් එකක් width 400px ට වඩා වැඩියි
+            if src and width > 400:
+                if width > max_width:
+                    max_width = width
+                    best_image = src
+                    
+        return best_image
     except:
         return None
 
 def get_driver():
     chrome_options = Options()
-    chrome_options.add_argument("--headless") # පසුබිමේ රන් වීමට
+    chrome_options.add_argument("--headless")
     chrome_options.add_argument("--no-sandbox")
     chrome_options.add_argument("--disable-dev-shm-usage")
     chrome_options.add_argument("--disable-blink-features=AutomationControlled")
@@ -123,16 +122,15 @@ def scrape_site(driver, url, name, seen_jobs):
         if found_jobs:
             print(f"✅ අලුත් ජොබ් {len(found_jobs[:2])}ක් හමු වුණා!")
             for job in found_jobs[:2]:
-                # --- අලුත් කොටස: Flyer එක සොයා ගැනීම ---
                 print(f"🖼️ {job['title']} සඳහා පෝස්ටරය සොයමින්...")
                 flyer_url = get_job_flyer(driver, job['link'])
                 
-                # පෝස්ට් එක දැමීම
+                # පින්තූරය ෂුවර් නැත්නම් Flyer_url එක None ලෙස යවයි
                 post_to_facebook(job['title'], job['link'], flyer_url)
                 
                 save_new_job(job['link'])
                 seen_jobs.append(job['link'])
-                time.sleep(5)
+                time.sleep(10) # Facebook එකෙන් Spam නොවීමට වැඩිපුර වෙලාවක් දීම
         else:
             print("😴 අලුත් ජොබ් කිසිවක් නැත.")
 
@@ -147,10 +145,6 @@ if __name__ == "__main__":
     sites = [
         ("XpressJobs", "https://xpress.jobs/jobs"),
         ("Ikman", "https://ikman.lk/en/ads/sri-lanka/jobs"),
-        ("RajayeJobs", "https://www.rajayejobs.com/search/label/Government%20Jobs"),
-        ("PlusInfo-Gov", "https://www.plusinfo.lk/search/label/Government%20Jobs"),
-        ("PlusInfo-Private", "https://www.plusinfo.lk/search/label/Private%20Jobs"),
-        ("ColomboJobs", "https://www.colombojobs.lk/"),
         ("TopJobs", "http://www.topjobs.lk/applicant/vacancybyfunctionalarea.jsp?FA=ALL"),
         ("JobVacanciesSL", "https://jobvacanciesinsl.blogspot.com/")
     ]
