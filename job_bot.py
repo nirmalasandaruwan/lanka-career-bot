@@ -33,6 +33,7 @@ def save_new_job(link):
         f.write(link + "\n")
 
 def post_to_facebook(job_title, job_url, image_url=None):
+    """ Facebook පේජ් එකට පෝස්ට් එක යැවීම """
     post_message = f"📢 අලුත්ම රැකියා අවස්ථාවක්! \n\n📌 තනතුර: {job_title}\n🔗 වැඩි විස්තර සහ අයදුම් කිරීමට: {job_url}{HASHTAGS}"
     
     if image_url:
@@ -51,18 +52,35 @@ def post_to_facebook(job_title, job_url, image_url=None):
     except Exception as e: print(f"⚠️ FB Connection Error: {str(e)}")
 
 def get_job_flyer(driver, job_link):
+    """ ජොබ් පේජ් එකට ගිහින් ලොකුම සහ නියම Flyer එක සොයාගැනීම """
+    # 🚫 අයින් කළ යුතු පින්තූර වල නමේ තියෙන වචන
+    KEYWORDS_TO_IGNORE = ["logo", "banner", "follow-us", "whatsapp", "plusinfo-channel", "generic-logo", "adsense", "uber"]
+
     try:
         driver.get(job_link)
-        time.sleep(5)
+        time.sleep(6) # පින්තූර ලෝඩ් වීමට කාලය දීම
         img_elements = driver.find_elements(By.TAG_NAME, "img")
         best_image, max_width = None, 0
+
         for img in img_elements:
             src = img.get_attribute("src")
+            if not src: continue
+            
+            # 1. නම අනුව පරීක්ෂාව
+            src_lower = src.lower()
+            if any(kw in src_lower for kw in KEYWORDS_TO_IGNORE): continue
+
             try:
                 width = int(img.get_attribute("naturalWidth") or 0)
-                if src and width > 450:
-                    if width > max_width:
-                        max_width, best_image = width, src
+                height = int(img.get_attribute("naturalHeight") or 0)
+                
+                # 2. මානයන් සහ හැඩය අනුව පරීක්ෂාව (Aspect Ratio)
+                # පෝස්ටරයක් නම් සාමාන්‍යයෙන් පළල 450px ට වඩා වැඩියි සහ උස 400px ට වඩා වැඩියි
+                if width > 450 and height > 400:
+                    # පින්තූරය ගොඩක් දිගටි (Landscape) නම් ඒක Flyer එකක් නෙවෙයි (Ad Banner එකක්)
+                    if width < (height * 1.8):
+                        if width > max_width:
+                            max_width, best_image = width, src
             except: continue
         return best_image
     except: return None
@@ -80,7 +98,7 @@ def scrape_site(driver, url, name, seen_jobs):
     print(f"\n🔍 {name} පරීක්ෂා කරමින් පවතියි...")
     try:
         driver.get(url)
-        WebDriverWait(driver, 20).until(EC.presence_of_element_located((By.TAG_NAME, "a")))
+        WebDriverWait(driver, 25).until(EC.presence_of_element_located((By.TAG_NAME, "a")))
         found_jobs, links = [], driver.find_elements(By.TAG_NAME, "a")
 
         for link in links:
@@ -88,12 +106,10 @@ def scrape_site(driver, url, name, seen_jobs):
             title = link.text.strip()
             valid = False
             
-            # සයිට් එක අනුව ලින්ක් එක ජොබ් එකක්දැයි හඳුනාගැනීම
             if "xpress.jobs" in url and "/view/" in href: valid = True
             elif "ikman.lk" in url and "/ad/" in href: valid = True
             elif "topjobs.lk" in url and "vacancy" in href: valid = True
             elif any(x in url for x in ["rajayejobs.com", "colombojobs.lk", "plusinfo.lk", "blogspot.com"]):
-                # රජයේ සහ අනෙකුත් ලැයිස්තුගත සයිට් සඳහා
                 if (href.endswith(".html") or "/2026/" in href or "/2025/" in href) and len(title) > 20:
                     valid = True
 
@@ -117,7 +133,6 @@ if __name__ == "__main__":
     print("🤖 Lanka Career Hub Bot පණ ගැන්වෙයි...")
     seen_jobs, driver = load_seen_jobs(), get_driver()
     
-    # උඹ දුන්න අලුත් සයිට් ටික මෙතන තියෙනවා
     sites = [
         ("XpressJobs", "https://xpress.jobs/jobs"),
         ("Ikman", "https://ikman.lk/en/ads/sri-lanka/jobs"),
