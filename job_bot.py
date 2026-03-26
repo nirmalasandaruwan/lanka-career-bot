@@ -14,7 +14,7 @@ from webdriver_manager.chrome import ChromeDriverManager
 sys.stdout.reconfigure(encoding='utf-8')
 
 # --- FACEBOOK CONFIGURATION ---
-PAGE_ACCESS_TOKEN = "EAAVNuLDLZCaEBREte3IEq3h6iPShzopGAU62Gv1PowTgFRiUExvKeccwM0D5ANZAuMVOJjUuVvPkRUnHkZBKZBwZAZCKpomrZBM5vexaQsFX4OuqWsekuXaY1r1N6f5mlkPLVgHcxDCVjiodZAOP0jnDduV01EcXWZCZCy2Wt23DnG4YSssEY1Iruyl9lRVPeZBSjE9ozOL"
+PAGE_ACCESS_TOKEN = "EAAVNuLDLZCaEBRA6qH9qRIFwYMgL8XSZBevJi8qANZCnLGVxmtqmbmKpfAtZBq4UQQ2vZA24VeaaqctojtgT9BAJMYX2szm4gyWDZBA6eB4fygZBUpSEkOEvZCoyrMiXhMT7WkSqZCz3ZBjCjuCFbVPJj2bEhwREOwUR60R4HCYZAFTk1nEAbCu6YVdBUAijzTmtNZAXDtaNUP9iGbOCxhNxCmjZC"
 PAGE_ID = "1071332246054096"
 HASHTAGS = "\n\n#jobsearch #JobOpportunity #SriLankaJobs #srilanka #jobopportunities #jobseekers #jobvacancy #jobs"
 
