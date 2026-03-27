@@ -47,37 +47,31 @@ def post_to_facebook(job_title, job_url, image_url=None):
         response = requests.post(url, data=payload)
         if response.status_code == 200:
             print(f"🎯 සාර්ථකව Facebook පෝස්ට් එක දැම්මා: {job_title}")
+            return True
         else:
             print(f"❌ FB Error: {response.json().get('error', {}).get('message')}")
-    except Exception as e: print(f"⚠️ FB Connection Error: {str(e)}")
+            return False
+    except Exception as e: 
+        print(f"⚠️ FB Connection Error: {str(e)}")
+        return False
 
 def get_job_flyer(driver, job_link):
     """ ජොබ් පේජ් එකට ගිහින් ලොකුම සහ නියම Flyer එක සොයාගැනීම """
-    # 🚫 අයින් කළ යුතු පින්තූර වල නමේ තියෙන වචන
     KEYWORDS_TO_IGNORE = ["logo", "banner", "follow-us", "whatsapp", "plusinfo-channel", "generic-logo", "adsense", "uber"]
-
     try:
         driver.get(job_link)
-        time.sleep(6) # පින්තූර ලෝඩ් වීමට කාලය දීම
+        time.sleep(6)
         img_elements = driver.find_elements(By.TAG_NAME, "img")
         best_image, max_width = None, 0
-
         for img in img_elements:
             src = img.get_attribute("src")
             if not src: continue
-            
-            # 1. නම අනුව පරීක්ෂාව
             src_lower = src.lower()
             if any(kw in src_lower for kw in KEYWORDS_TO_IGNORE): continue
-
             try:
                 width = int(img.get_attribute("naturalWidth") or 0)
                 height = int(img.get_attribute("naturalHeight") or 0)
-                
-                # 2. මානයන් සහ හැඩය අනුව පරීක්ෂාව (Aspect Ratio)
-                # පෝස්ටරයක් නම් සාමාන්‍යයෙන් පළල 450px ට වඩා වැඩියි සහ උස 400px ට වඩා වැඩියි
                 if width > 450 and height > 400:
-                    # පින්තූරය ගොඩක් දිගටි (Landscape) නම් ඒක Flyer එකක් නෙවෙයි (Ad Banner එකක්)
                     if width < (height * 1.8):
                         if width > max_width:
                             max_width, best_image = width, src
@@ -109,7 +103,8 @@ def scrape_site(driver, url, name, seen_jobs):
             if "xpress.jobs" in url and "/view/" in href: valid = True
             elif "ikman.lk" in url and "/ad/" in href: valid = True
             elif "topjobs.lk" in url and "vacancy" in href: valid = True
-            elif any(x in url for x in ["rajayejobs.com", "colombojobs.lk", "plusinfo.lk", "blogspot.com"]):
+            # මෙතනට JobHunder එකතු කළා 🦾
+            elif any(x in url for x in ["rajayejobs.com", "colombojobs.lk", "plusinfo.lk", "blogspot.com", "jobhunder.com"]):
                 if (href.endswith(".html") or "/2026/" in href or "/2025/" in href) and len(title) > 20:
                     valid = True
 
@@ -122,9 +117,11 @@ def scrape_site(driver, url, name, seen_jobs):
             for job in found_jobs[:2]:
                 print(f"🖼️ {job['title']} පෝස්ටරය සොයමින්...")
                 flyer_url = get_job_flyer(driver, job['link'])
-                post_to_facebook(job['title'], job['link'], flyer_url)
-                save_new_job(job['link'])
-                seen_jobs.append(job['link'])
+                
+                # Facebook එකට පෝස්ට් කරලා සාර්ථක නම් විතරක් සේව් කරනවා
+                if post_to_facebook(job['title'], job['link'], flyer_url):
+                    save_new_job(job['link'])
+                    seen_jobs.append(job['link'])
                 time.sleep(15) 
         else: print("😴 අලුත් ජොබ් කිසිවක් නැත.")
     except Exception as e: print(f"❌ {name} හිදී පොඩි අවුලක්: {str(e)}")
@@ -134,6 +131,7 @@ if __name__ == "__main__":
     seen_jobs, driver = load_seen_jobs(), get_driver()
     
     sites = [
+        ("JobHunder", "https://www.jobhunder.com/"),  # අලුතින් එකතු කළා 🦾
         ("XpressJobs", "https://xpress.jobs/jobs"),
         ("Ikman", "https://ikman.lk/en/ads/sri-lanka/jobs"),
         ("TopJobs", "http://www.topjobs.lk/applicant/vacancybyfunctionalarea.jsp?FA=ALL"),
