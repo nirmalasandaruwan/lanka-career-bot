@@ -352,6 +352,7 @@ https://www.plusinfo.lk/2026/02/amended-notice-for-graduate-teaching.html
 https://www.plusinfo.lk/2026/02/irrigation-department-store-keeper-exam.html
 https://www.plusinfo.lk/2026/02/ocean-view-development-company-ovdc.html
 https://www.plusinfo.lk/2026/02/health-ministry-phsep-project-job_19.html
+<<<<<<< HEAD
 https://www.jobhunder.com/2025/08/undergraduate-trainee-software-engineer.html
 https://www.jobhunder.com/2025/06/associate-software-engineer.html
 https://ikman.lk/en/ad/uber-car-van-tuk-moto-driver-partner-colombo
@@ -384,3 +385,19 @@ https://rooster.jobs/jobs/516510
 https://rooster.jobs/jobs/516361
 https://www.plusinfo.lk/2026/02/sri-jayewardenepura-hospital-sjgh-job.html
 https://www.plusinfo.lk/2026/01/sports-education-courses-2026-in-niss.html
+=======
+https://www.jobhunder.com/2026/03/intern-software-engineer-data-science.html
+https://www.jobhunder.com/2025/08/undergraduate-trainee-software-engineer.html
+https://ikman.lk/en/ad/driver-thalawathugoda-colombo-1
+https://ikman.lk/en/ad/site-supervisor-assistant-kurunegala
+https://www.jobhunder.com/2026/03/junior-java-developer.html
+https://www.jobhunder.com/2026/03/intern-quality-assurance_27.html
+https://ikman.lk/en/ad/ap-vellnd-saelee-bhaanndd-vikinniimtt-colombo
+https://ikman.lk/en/ad/call-center-executive-gampaha-59
+https://www.plusinfo.lk/2026/02/etf-board-etfb-job-vacancies-2026.html
+https://www.plusinfo.lk/2026/02/parliament-deputy-director-finance.html
+https://www.plusinfo.lk/2026/02/institute-of-textile-apparel-slita.html
+https://www.plusinfo.lk/2026/02/law-college-special-entrance-exam.html
+https://www.plusinfo.lk/2026/02/registration-for-vehicle-repairing.html
+https://www.plusinfo.lk/2026/01/slida-job-vacancies-2026-additional.html
+>>>>>>> 62dce7cec7ccb39db44c57fe7416f7a39e1241f0
