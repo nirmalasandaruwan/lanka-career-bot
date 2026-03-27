@@ -1,7 +1,8 @@
 import sys
-import os
+import os # 🦾 Environment variables කියවන්න අලුතින් එකතු කළා
 import requests
 import time
+import hashlib
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.options import Options
@@ -13,12 +14,12 @@ from webdriver_manager.chrome import ChromeDriverManager
 # සිංහල අකුරු ටර්මිනල් එකේ පෙන්වීමට අවශ්‍ය සැකසුම
 sys.stdout.reconfigure(encoding='utf-8')
 
-# --- FACEBOOK CONFIGURATION ---
-PAGE_ACCESS_TOKEN = "EAAVNuLDLZCaEBRA6qH9qRIFwYMgL8XSZBevJi8qANZCnLGVxmtqmbmKpfAtZBq4UQQ2vZA24VeaaqctojtgT9BAJMYX2szm4gyWDZBA6eB4fygZBUpSEkOEvZCoyrMiXhMT7WkSqZCz3ZBjCjuCFbVPJj2bEhwREOwUR60R4HCYZAFTk1nEAbCu6YVdBUAijzTmtNZAXDtaNUP9iGbOCxhNxCmjZC"
-PAGE_ID = "1071332246054096"
+# --- CONFIGURATION (SECURE VERSION) ---
+# 🛡️ දැන් මෙතන කෙළින්ම Token එක නැහැ. ඒක GitHub Secrets වලින් ඔටෝ ගන්නවා.
+PAGE_ACCESS_TOKEN = os.environ.get("FB_ACCESS_TOKEN")
+PAGE_ID = os.environ.get("FB_PAGE_ID")
 HASHTAGS = "\n\n#jobsearch #JobOpportunity #SriLankaJobs #srilanka #jobopportunities #jobseekers #jobvacancy #jobs"
 
-# පෝස්ට් කරපු ජොබ් ලින්ක් මතක තබා ගන්නා ෆයිල් එක
 DB_FILE = "seen_jobs.txt"
 
 def load_seen_jobs():
@@ -28,14 +29,26 @@ def load_seen_jobs():
             return f.read().splitlines()
     except: return []
 
-def save_new_job(link):
+def save_new_job(job_id):
     with open(DB_FILE, "a", encoding='utf-8') as f:
-        f.write(link + "\n")
+        f.write(job_id + "\n")
+
+# --- UTILS ---
+
+def download_image(image_url, name="tiktok_ready.jpg"):
+    try:
+        response = requests.get(image_url, stream=True)
+        if response.status_code == 200:
+            with open(name, 'wb') as f:
+                f.write(response.content)
+            return name
+    except: return None
+    return None
+
+# --- FB POSTING ---
 
 def post_to_facebook(job_title, job_url, image_url=None):
-    """ Facebook පේජ් එකට පෝස්ට් එක යැවීම """
-    post_message = f"📢 අලුත්ම රැකියා අවස්ථාවක්! \n\n📌 තනතුර: {job_title}\n🔗 වැඩි විස්තර සහ අයදුම් කිරීමට: {job_url}{HASHTAGS}"
-    
+    post_message = f"📢 අලුත්ම රැකියා අවස්ථාවක්! \n\n📌 තනතුර: {job_title}\n🔗 වැඩි විස්තර: {job_url}{HASHTAGS}"
     if image_url:
         url = f"https://graph.facebook.com/v21.0/{PAGE_ID}/photos"
         payload = {'url': image_url, 'caption': post_message, 'access_token': PAGE_ACCESS_TOKEN}
@@ -45,19 +58,26 @@ def post_to_facebook(job_title, job_url, image_url=None):
     
     try:
         response = requests.post(url, data=payload)
-        if response.status_code == 200:
-            print(f"🎯 සාර්ථකව Facebook පෝස්ට් එක දැම්මා: {job_title}")
-            return True
-        else:
-            print(f"❌ FB Error: {response.json().get('error', {}).get('message')}")
-            return False
-    except Exception as e: 
-        print(f"⚠️ FB Connection Error: {str(e)}")
-        return False
+        return response.status_code == 200
+    except: return False
+
+def post_whatsapp_to_facebook(message, image_url=None):
+    fb_msg = f"📢 WhatsApp හරහා ලැබුණු රැකියා පුවතක්! \n\n{message}{HASHTAGS}"
+    if image_url:
+        url = f"https://graph.facebook.com/v21.0/{PAGE_ID}/photos"
+        payload = {'url': image_url, 'caption': fb_msg, 'access_token': PAGE_ACCESS_TOKEN}
+    else:
+        url = f"https://graph.facebook.com/v21.0/{PAGE_ID}/feed"
+        payload = {'message': fb_msg, 'access_token': PAGE_ACCESS_TOKEN}
+    
+    try:
+        response = requests.post(url, data=payload)
+        return response.status_code == 200
+    except: return False
+
+# --- WEB SCRAPING ---
 
 def get_job_flyer(driver, job_link):
-    """ ජොබ් පේජ් එකට ගිහින් ලොකුම සහ නියම Flyer එක සොයාගැනීම """
-    KEYWORDS_TO_IGNORE = ["logo", "banner", "follow-us", "whatsapp", "plusinfo-channel", "generic-logo", "adsense", "uber"]
     try:
         driver.get(job_link)
         time.sleep(6)
@@ -66,30 +86,18 @@ def get_job_flyer(driver, job_link):
         for img in img_elements:
             src = img.get_attribute("src")
             if not src: continue
-            src_lower = src.lower()
-            if any(kw in src_lower for kw in KEYWORDS_TO_IGNORE): continue
             try:
                 width = int(img.get_attribute("naturalWidth") or 0)
                 height = int(img.get_attribute("naturalHeight") or 0)
-                if width > 450 and height > 400:
-                    if width < (height * 1.8):
-                        if width > max_width:
-                            max_width, best_image = width, src
+                if width > 400 and height > 400:
+                    if width > max_width:
+                        max_width, best_image = width, src
             except: continue
         return best_image
     except: return None
 
-def get_driver():
-    chrome_options = Options()
-    chrome_options.add_argument("--headless")
-    chrome_options.add_argument("--no-sandbox")
-    chrome_options.add_argument("--disable-dev-shm-usage")
-    chrome_options.add_argument("--disable-blink-features=AutomationControlled")
-    chrome_options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
-    return webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=chrome_options)
-
 def scrape_site(driver, url, name, seen_jobs):
-    print(f"\n🔍 {name} පරීක්ෂා කරමින් පවතියි...")
+    print(f"\n🔍 {name} පරීක්ෂා කරයි...")
     try:
         driver.get(url)
         WebDriverWait(driver, 25).until(EC.presence_of_element_located((By.TAG_NAME, "a")))
@@ -103,49 +111,98 @@ def scrape_site(driver, url, name, seen_jobs):
             if "xpress.jobs" in url and "/view/" in href: valid = True
             elif "ikman.lk" in url and "/ad/" in href: valid = True
             elif "topjobs.lk" in url and "vacancy" in href: valid = True
-            # මෙතනට JobHunder එකතු කළා 🦾
-            elif any(x in url for x in ["rajayejobs.com", "colombojobs.lk", "plusinfo.lk", "blogspot.com", "jobhunder.com"]):
-                if (href.endswith(".html") or "/2026/" in href or "/2025/" in href) and len(title) > 20:
-                    valid = True
+            elif "jobenvoy.com" in url and "/job/" in href: valid = True
+            elif "rooster.jobs" in url and len(title) > 15 and "jobs" in href: valid = True
+            elif any(x in url for x in ["rajayejobs.com", "colombojobs.lk", "plusinfo.lk", "jobhunder.com", "blogspot.com"]):
+                if (href.endswith(".html") or "/2026/" in href) and len(title) > 20: valid = True
 
             if valid and len(title) > 15:
                 if href not in seen_jobs and href not in [j['link'] for j in found_jobs]:
                     found_jobs.append({'title': title, 'link': href})
 
         if found_jobs:
-            print(f"✅ අලුත් ජොබ් {len(found_jobs[:2])}ක් හමු වුණා!")
             for job in found_jobs[:2]:
-                print(f"🖼️ {job['title']} පෝස්ටරය සොයමින්...")
                 flyer_url = get_job_flyer(driver, job['link'])
-                
-                # Facebook එකට පෝස්ට් කරලා සාර්ථක නම් විතරක් සේව් කරනවා
                 if post_to_facebook(job['title'], job['link'], flyer_url):
+                    print(f"🎯 FB පෝස්ට් එක සාර්ථකයි: {job['title']}")
                     save_new_job(job['link'])
                     seen_jobs.append(job['link'])
+                    if flyer_url: download_image(flyer_url)
                 time.sleep(15) 
-        else: print("😴 අලුත් ජොබ් කිසිවක් නැත.")
-    except Exception as e: print(f"❌ {name} හිදී පොඩි අවුලක්: {str(e)}")
+        else: print(f"😴 {name} හි අලුත් ජොබ් නැත.")
+    except Exception as e: print(f"❌ {name} Scraper Error: {str(e)}")
+
+# --- WHATSAPP SCRAPING ---
+
+def scrape_whatsapp_channel(driver, channel_url, seen_jobs):
+    print(f"\n🔍 WhatsApp Channel පරීක්ෂා කරයි...")
+    try:
+        driver.get(channel_url)
+        time.sleep(10)
+        cards = driver.find_elements(By.CSS_SELECTOR, "div[role='row']") 
+
+        found_count = 0
+        for card in cards[-5:]:
+            try:
+                text_element = card.find_element(By.CSS_SELECTOR, "span[dir='ltr']")
+                full_text = text_element.text.strip()
+                if len(full_text) < 30: continue
+
+                img_url = None
+                try:
+                    img_element = card.find_element(By.TAG_NAME, "img")
+                    img_url = img_element.get_attribute("src")
+                except: pass
+
+                msg_id = hashlib.md5(full_text.encode()).hexdigest()
+
+                if msg_id not in seen_jobs:
+                    print(f"📢 WhatsApp අලුත් පෝස්ට් එකක් හමු වුණා!")
+                    if post_whatsapp_to_facebook(full_text, img_url):
+                        print(f"🎯 WhatsApp පෝස්ට් එක FB එකට දැම්මා.")
+                        save_new_job(msg_id)
+                        seen_jobs.append(msg_id)
+                        found_count += 1
+                        if img_url: download_image(img_url)
+                    time.sleep(15)
+            except: continue
+
+        if found_count == 0: print("😴 WhatsApp හි අලුත් පෝස්ට් නැත.")
+    except Exception as e: print(f"⚠️ WhatsApp Scraper Error: {str(e)}")
+
+# --- MAIN ---
+
+def get_driver():
+    chrome_options = Options()
+    chrome_options.add_argument("--headless")
+    chrome_options.add_argument("--no-sandbox")
+    chrome_options.add_argument("--disable-dev-shm-usage")
+    return webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=chrome_options)
 
 if __name__ == "__main__":
-    print("🤖 Lanka Career Hub Bot පණ ගැන්වෙයි...")
+    print("🤖 Lanka Career Hub Bot පණ ගැන්වෙයි (Full Sites + WhatsApp)...")
     seen_jobs, driver = load_seen_jobs(), get_driver()
     
+    # මෙන්න මචං උඹේ සයිට් 9ම ලිස්ට් එක! 🦾✨
     sites = [
-        ("JobHunder", "https://www.jobhunder.com/"),  # අලුතින් එකතු කළා 🦾
+        ("JobHunder", "https://www.jobhunder.com/"),
         ("XpressJobs", "https://xpress.jobs/jobs"),
         ("Ikman", "https://ikman.lk/en/ads/sri-lanka/jobs"),
         ("TopJobs", "http://www.topjobs.lk/applicant/vacancybyfunctionalarea.jsp?FA=ALL"),
-        ("JobVacanciesSL", "https://jobvacanciesinsl.blogspot.com/"),
-        ("RajayeJobs", "https://www.rajayejobs.com/search/label/Government%20Jobs?max-results=7"),
-        ("ColomboJobs", "https://www.colombojobs.lk/"),
+        ("JobEnvoy", "https://jobenvoy.com/"),
+        ("RoosterJobs", "https://rooster.jobs/"),
         ("PlusInfoGov", "https://www.plusinfo.lk/search/label/Government%20Jobs"),
-        ("PlusInfoPrivate", "https://www.plusinfo.lk/search/label/Private%20Jobs"),
-        ("PlusInfoNGO", "https://www.plusinfo.lk/search/label/NGO%20Jobs")
+        ("RajayeJobs", "https://www.rajayejobs.com/search/label/Government%20Jobs?max-results=7"),
+        ("ColomboJobs", "https://www.colombojobs.lk/")
     ]
     
     try:
         for name, url in sites:
             scrape_site(driver, url, name, seen_jobs)
+            
+        whatsapp_url = "https://whatsapp.com/channel/0029Va9Xpxx8PgsOtsAbFn45"
+        scrape_whatsapp_channel(driver, whatsapp_url, seen_jobs)
+        
     finally:
         driver.quit()
-        print("\n🏁 සියලුම පරීක්ෂාවන් අවසන්! සුබ රාත්‍රියක් මචං!")
+        print("\n🏁 සියලුම පරීක්ෂාවන් අවසන්! සුබ රාත්‍රියක් මචං! 🦾🔥")

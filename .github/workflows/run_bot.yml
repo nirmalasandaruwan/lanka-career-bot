@@ -1,16 +1,16 @@
-name: Run Lanka Career Bot
+name: Lanka Career Hub Bot Run
 
 on:
   schedule:
-    - cron: '0 */2 * * *' # සෑම පැය 2කට වරක්ම ස්වයංක්‍රීයව ක්‍රියාත්මක වේ
-  workflow_dispatch: # අපට ඕන වෙලාවක බටන් එකක් ඔබලා රන් කරන්නත් පුළුවන්
+    - cron: '0 * * * *' # පැයෙන් පැයට ඔටෝ රන් වෙන්න (උඹට ඕන වෙලාවකට වෙනස් කරගන්න පුළුවන්)
+  workflow_dispatch: # මැනුවල් රන් කරන්නත් පුළුවන්
 
 jobs:
-  build:
+  run-bot:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code
+      - name: Checkout Code
         uses: actions/checkout@v3
 
       - name: Set up Python
@@ -18,18 +18,13 @@ jobs:
         with:
           python-version: '3.9'
 
-      - name: Install dependencies
+      - name: Install Dependencies
         run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
+          pip install selenium requests webdriver-manager
 
       - name: Run Job Bot
+        # 🛡️ මෙතන තමයි අපි අර හංගපු Secrets ටික කෝඩ් එකට සම්බන්ධ කරන්නේ! 🦾
+        env:
+          FB_ACCESS_TOKEN: ${{ secrets.FB_ACCESS_TOKEN }}
+          FB_PAGE_ID: ${{ secrets.FB_PAGE_ID }}
         run: python job_bot.py
-
-      - name: Commit and push if seen_jobs.txt changed
-        run: |
-          git config --global user.name "GitHub Action"
-          git config --global user.email "action@github.com"
-          git add seen_jobs.txt
-          git commit -m "Update seen jobs list [skip ci]" || echo "No changes to commit"
-          git push
