@@ -1,5 +1,5 @@
 import sys
-import os # 🦾 Environment variables කියවන්න අලුතින් එකතු කළා
+import os
 import requests
 import time
 import hashlib
@@ -15,7 +15,7 @@ from webdriver_manager.chrome import ChromeDriverManager
 sys.stdout.reconfigure(encoding='utf-8')
 
 # --- CONFIGURATION (SECURE VERSION) ---
-# 🛡️ දැන් මෙතන කෙළින්ම Token එක නැහැ. ඒක GitHub Secrets වලින් ඔටෝ ගන්නවා.
+# 🛡️ GitHub Secrets වලින් යතුරු ලබාගැනීම
 PAGE_ACCESS_TOKEN = os.environ.get("FB_ACCESS_TOKEN")
 PAGE_ID = os.environ.get("FB_PAGE_ID")
 HASHTAGS = "\n\n#jobsearch #JobOpportunity #SriLankaJobs #srilanka #jobopportunities #jobseekers #jobvacancy #jobs"
@@ -45,10 +45,12 @@ def download_image(image_url, name="tiktok_ready.jpg"):
     except: return None
     return None
 
-# --- FB POSTING ---
+# --- FB POSTING LOGIC ---
 
 def post_to_facebook(job_title, job_url, image_url=None):
+    """ වෙබ් සයිට් ජොබ් පෝස්ට් කිරීම """
     post_message = f"📢 අලුත්ම රැකියා අවස්ථාවක්! \n\n📌 තනතුර: {job_title}\n🔗 වැඩි විස්තර: {job_url}{HASHTAGS}"
+    
     if image_url:
         url = f"https://graph.facebook.com/v21.0/{PAGE_ID}/photos"
         payload = {'url': image_url, 'caption': post_message, 'access_token': PAGE_ACCESS_TOKEN}
@@ -62,7 +64,10 @@ def post_to_facebook(job_title, job_url, image_url=None):
     except: return False
 
 def post_whatsapp_to_facebook(message, image_url=None):
-    fb_msg = f"📢 WhatsApp හරහා ලැබුණු රැකියා පුවතක්! \n\n{message}{HASHTAGS}"
+    """ WhatsApp පෝස්ට් (Image + Text) FB එකට යැවීම """
+    # 🦾 මචං මෙතන වෙනම Title එකක් නැහැ, පෝස්ට් එකේ ටෙක්ස්ට් එකයි Hashtags ටිකයි විතරයි වැටෙන්නේ
+    fb_msg = f"📢 WhatsApp හරහා ලැබුණු රැකියා පුවතක්! \n\n{message}"
+    
     if image_url:
         url = f"https://graph.facebook.com/v21.0/{PAGE_ID}/photos"
         payload = {'url': image_url, 'caption': fb_msg, 'access_token': PAGE_ACCESS_TOKEN}
@@ -132,33 +137,50 @@ def scrape_site(driver, url, name, seen_jobs):
         else: print(f"😴 {name} හි අලුත් ජොබ් නැත.")
     except Exception as e: print(f"❌ {name} Scraper Error: {str(e)}")
 
-# --- WHATSAPP SCRAPING ---
+# --- WHATSAPP HYBRID SCRAPING ---
 
 def scrape_whatsapp_channel(driver, channel_url, seen_jobs):
-    print(f"\n🔍 WhatsApp Channel පරීක්ෂා කරයි...")
+    print(f"\n🔍 WhatsApp Channel පරීක්ෂා කරයි (Hybrid Mode)...")
     try:
         driver.get(channel_url)
-        time.sleep(10)
+        time.sleep(20) # පෝස්ට් ලෝඩ් වෙන්න හොඳට වෙලාව දෙමු 🦾
+
         cards = driver.find_elements(By.CSS_SELECTOR, "div[role='row']") 
 
         found_count = 0
-        for card in cards[-5:]:
+        for card in cards[-5:]: # අන්තිම පෝස්ට් 5 බලමු
             try:
-                text_element = card.find_element(By.CSS_SELECTOR, "span[dir='ltr']")
-                full_text = text_element.text.strip()
-                if len(full_text) < 30: continue
+                # 1. පෝස්ට් එකේ ටෙක්ස්ට් එක සොයමු
+                full_text = ""
+                try:
+                    text_element = card.find_element(By.CSS_SELECTOR, "span[dir='ltr']")
+                    full_text = text_element.text.strip()
+                except: pass
 
+                # 2. පෝස්ට් එකේ පින්තූරය සොයමු
                 img_url = None
                 try:
                     img_element = card.find_element(By.TAG_NAME, "img")
                     img_url = img_element.get_attribute("src")
                 except: pass
 
-                msg_id = hashlib.md5(full_text.encode()).hexdigest()
+                # 3. හිස් පෝස්ට් නම් skip කරමු
+                if not full_text and not img_url: continue
+
+                # 4. Unique ID එකක් හදමු (Text තිබ්බොත් ඒකෙන්, නැත්නම් Image URL එකෙන්)
+                if full_text:
+                    msg_id = hashlib.md5(full_text.encode()).hexdigest()
+                else:
+                    msg_id = hashlib.md5(img_url.encode()).hexdigest()
 
                 if msg_id not in seen_jobs:
-                    print(f"📢 WhatsApp අලුත් පෝස්ට් එකක් හමු වුණා!")
-                    if post_whatsapp_to_facebook(full_text, img_url):
+                    print(f"📢 WhatsApp අලුත් පෝස්ට් එකක් හමු වුණා! (Image: {'ඔව්' if img_url else 'නැත'})")
+                    
+                    # 5. කැප්ෂන් එක හදමු (ටෙක්ස්ට් එකයි හෑෂ්ටැග් ටිකයි) 🦾
+                    # ටෙක්ස්ට් එක නැත්නම් හෑෂ්ටැග් ටික විතරක් වැටෙයි
+                    fb_caption = f"{full_text}{HASHTAGS}" if full_text else HASHTAGS
+                    
+                    if post_whatsapp_to_facebook(fb_caption, img_url):
                         print(f"🎯 WhatsApp පෝස්ට් එක FB එකට දැම්මා.")
                         save_new_job(msg_id)
                         seen_jobs.append(msg_id)
@@ -170,7 +192,7 @@ def scrape_whatsapp_channel(driver, channel_url, seen_jobs):
         if found_count == 0: print("😴 WhatsApp හි අලුත් පෝස්ට් නැත.")
     except Exception as e: print(f"⚠️ WhatsApp Scraper Error: {str(e)}")
 
-# --- MAIN ---
+# --- MAIN RUNNER ---
 
 def get_driver():
     chrome_options = Options()
@@ -180,10 +202,10 @@ def get_driver():
     return webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=chrome_options)
 
 if __name__ == "__main__":
-    print("🤖 Lanka Career Hub Bot පණ ගැන්වෙයි (Full Sites + WhatsApp)...")
+    print("🤖 Lanka Career Hub Bot පණ ගැන්වෙයි (Sites 9 + WhatsApp Hybrid)...")
     seen_jobs, driver = load_seen_jobs(), get_driver()
     
-    # මෙන්න මචං උඹේ සයිට් 9ම ලිස්ට් එක! 🦾✨
+    # 🦾 මචං මෙන්න සයිට් 9ම! කිසිවක් අතහැරියේ නැත.
     sites = [
         ("JobHunder", "https://www.jobhunder.com/"),
         ("XpressJobs", "https://xpress.jobs/jobs"),
@@ -197,12 +219,14 @@ if __name__ == "__main__":
     ]
     
     try:
+        # 1. සයිට් පරීක්ෂාව
         for name, url in sites:
             scrape_site(driver, url, name, seen_jobs)
             
+        # 2. WhatsApp පරීක්ෂාව 🦾
         whatsapp_url = "https://whatsapp.com/channel/0029Va9Xpxx8PgsOtsAbFn45"
         scrape_whatsapp_channel(driver, whatsapp_url, seen_jobs)
         
     finally:
         driver.quit()
-        print("\n🏁 සියලුම පරීක්ෂාවන් අවසන්! සුබ රාත්‍රියක් මචං! 🦾🔥")
+        print("\n🏁 සියලුම පරීක්ෂාවන් අවසන්! සුබ රාත්‍රියක් මචං නිර්මල! 🦾🔥")
