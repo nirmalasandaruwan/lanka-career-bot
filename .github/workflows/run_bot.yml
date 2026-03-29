@@ -2,27 +2,24 @@ name: Lanka Career Hub Bot Run
 
 on:
   schedule:
-    - cron: '0 * * * *' # සෑම පැයකටම වරක්
+    - cron: '0 * * * *'
   workflow_dispatch:
 
 jobs:
   run-bot:
     runs-on: ubuntu-latest
     permissions:
-      contents: write # 🦾 මේක අනිවාර්යයි! GitHub එකට ලියන්න අවසර දෙනවා.
+      contents: write # 🦾 මේක අනිවාර්යයි!
 
     steps:
       - name: Checkout Code
         uses: actions/checkout@v3
 
-      - name: Set up Python
+      - name: Install Python & Deps
         uses: actions/setup-python@v4
         with:
           python-version: '3.9'
-
-      - name: Install Dependencies
-        run: |
-          pip install selenium requests webdriver-manager
+      - run: pip install selenium requests webdriver-manager
 
       - name: Run Job Bot
         env:
@@ -30,11 +27,12 @@ jobs:
           FB_PAGE_ID: ${{ secrets.FB_PAGE_ID }}
         run: python job_bot.py
 
-      # 🛡️ මෙන්න මේ කොටස තමයි වැදගත්ම දේ!
-      - name: Commit and Push seen_jobs update
+      # 🛡️ මෙන්න මේකෙන් තමයි Duplicate වෙන්නැතුව මතකය සේව් කරගන්නේ!
+      - name: Save Bot Memory
         run: |
-          git config --global user.name "GitHub Action Bot"
-          git config --global user.email "actions@github.com"
+          git config --global user.name "GitHub Action"
+          git config --global user.email "action@github.com"
+          git pull origin main --rebase # අලුත් මතකය බාගන්න
           git add seen_jobs.txt
-          git commit -m "Update seen_jobs list [skip ci]" || echo "No changes to commit"
-          git push
+          git commit -m "Update seen jobs [skip ci]" || echo "No changes"
+          git push origin main
