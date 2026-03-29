@@ -135,4 +135,4 @@ if __name__ == "__main__":
         scrape_whatsapp_channel(driver, "https://whatsapp.com/channel/0029Va9Xpxx8PgsOtsAbFn45", seen_jobs)
     finally:
         driver.quit()
-        print("\n🏁 සියලුම පරීක්ෂාවන් අවසන්! ä
+        print("\n🏁 සියලුම පරීක්ෂාවන් අවසන්! 🦾🔥")
