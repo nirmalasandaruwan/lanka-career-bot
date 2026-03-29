@@ -32,7 +32,9 @@ jobs:
         run: |
           git config --global user.name "GitHub Action"
           git config --global user.email "action@github.com"
-          git pull origin main --rebase # අලුත් මතකය බාගන්න
           git add seen_jobs.txt
-          git commit -m "Update seen jobs [skip ci]" || echo "No changes"
+          # 🦾 වෙනස්කම් තියෙනවා නම් විතරක් Commit කරමු, නැත්නම් Error එකක් එයි
+          git diff --quiet && git diff --staged --quiet || git commit -m "Update seen jobs [skip ci]"
+          # 🦾 දැන් අලුත් මතකය එක්ක Pull කරමු
+          git pull --rebase origin main
           git push origin main
