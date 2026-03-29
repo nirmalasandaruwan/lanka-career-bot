@@ -2,7 +2,7 @@ name: Lanka Career Hub Bot Run
 
 on:
   schedule:
-    - cron: '0 * * * *' # පැයෙන් පැයට
+    - cron: '0 * * * *' # සෑම පැයකටම වරක්
   workflow_dispatch:
 
 jobs:
@@ -30,8 +30,8 @@ jobs:
           FB_PAGE_ID: ${{ secrets.FB_PAGE_ID }}
         run: python job_bot.py
 
-      # 🛡️ මෙන්න අලුත් කොටස! අලුත් වෙච්ච seen_jobs.txt එක Repo එකට Push කරනවා.
-      - name: Commit and Push changes
+      # 🛡️ මෙන්න මේ කොටස තමයි වැදගත්ම දේ!
+      - name: Commit and Push seen_jobs update
         run: |
           git config --global user.name "GitHub Action Bot"
           git config --global user.email "actions@github.com"
