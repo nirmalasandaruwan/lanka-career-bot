@@ -40,7 +40,6 @@ def post_to_facebook(message, image_url=None):
     except: return False
 
 # --- IMAGE SCRAPER ---
- # --- IMAGE SCRAPER ---
 def get_job_flyer(driver, job_link):
     try:
         driver.get(job_link)
@@ -48,24 +47,19 @@ def get_job_flyer(driver, job_link):
         imgs = driver.find_elements(By.TAG_NAME, "img")
         best_img, max_w = None, 0
         
-        # 1. මේ වචන තියෙන රූප (images) අයින් කරනවා
         bad_keywords = ["logo", "banner", "whatsapp", "ad", "ads", "sponsored", "footer", "header", "icon", "avatar"]
         
         for img in imgs:
             src = img.get_attribute("src")
             if not src: continue
             
-            # අකුරු සේරම simple කරලා බලනවා bad_keywords තියෙනවද කියලා
             src_lower = src.lower()
             if any(bad_word in src_lower for bad_word in bad_keywords): 
                 continue
                 
             try:
-                # රූපයේ පළල (Width) සහ උස (Height) ගන්නවා
                 w = int(img.get_attribute("naturalWidth") or 0)
                 h = int(img.get_attribute("naturalHeight") or 0)
-                
-                # 2. පළල 350ට වඩා සහ උස 300ට වඩා වැඩිද බලනවා (WhatsApp banners අයින් වෙන්න)
                 if w > 350 and h > 300: 
                     if w > max_w: 
                         max_w, best_img = w, src
@@ -110,42 +104,82 @@ def scrape_site(driver, url, name, seen_jobs):
             time.sleep(15)
     except Exception as e: print(f"❌ {name} Error: {str(e)}")
 
-# --- WHATSAPP SCRAPER ---
+# --- WHATSAPP SCRAPER (100% ISOLATED) ---
 def scrape_whatsapp_channel(driver, channel_url, seen_jobs):
-    print(f"\n🔍 WhatsApp Channel පරීක්ෂා කරයි (Hybrid)...")
+    print(f"\n🔍 WhatsApp Channel පරීක්ෂා කරයි (Stealth Mode)...")
     try:
         driver.get(channel_url)
-        time.sleep(20)
-        cards = driver.find_elements(By.XPATH, "//div[@role='row'] | //div[contains(@class, 'copyable-text')]")
-        for card in cards[-5:]:
-            try:
-                text = ""
-                try: text = card.find_element(By.CSS_SELECTOR, "span[dir='ltr']").text.strip()
-                except: pass
-                img_url = None
-                try: img_url = card.find_element(By.TAG_NAME, "img").get_attribute("src")
-                except: pass
-                
-                if not text and not img_url: continue
-                msg_id = hashlib.md5((text + str(img_url)).encode()).hexdigest()
+        time.sleep(20) 
+        
+        # පිටුවේ මොනවද තියෙන්නේ කියලා බලලා Meta බ්ලොක් කරලද කියලා චෙක් කරනවා
+        page_source = driver.page_source.lower()
+        if "update your browser" in page_source or "javascript" in page_source:
+            print("⚠️ Meta සමාගම විසින් බොට්ව හඳුනාගෙන ඇත. අද දිනට WhatsApp පරීක්ෂාව නතර කෙරේ.")
+            return
 
-                if msg_id not in seen_jobs:
-                    fb_msg = f"📢 WhatsApp හරහා ලැබුණු රැකියා පුවතක්! \n\n{text}{HASHTAGS}" if text else HASHTAGS
-                    if post_to_facebook(fb_msg, img_url):
-                        save_new_job(msg_id)
-                        seen_jobs.append(msg_id)
-                    time.sleep(15)
+        # Layout ගැන හිතන්නේ නැතුව ලොකු අකුරු ගොඩවල් හොයනවා
+        elements = driver.find_elements(By.XPATH, "//*[string-length(normalize-space(text())) > 50]")
+        
+        valid_messages = []
+        for el in elements[-15:]: 
+            try:
+                text = el.text.strip()
+                if len(text) > 40 and "WhatsApp" not in text and text not in [m['text'] for m in valid_messages]:
+                    img_url = None
+                    try:
+                        imgs = el.find_elements(By.XPATH, ".//img | ./ancestor::*[position()<=3]//img")
+                        for img in imgs:
+                            src = img.get_attribute("src")
+                            if src and "emoji" not in src and "avatar" not in src:
+                                img_url = src
+                                break
+                    except: pass
+                    valid_messages.append({'text': text, 'img': img_url})
             except: continue
-    except: pass
+
+        found_count = 0
+        for msg in valid_messages[-3:]:
+            text = msg['text']
+            img_url = msg['img']
+            msg_id = hashlib.md5((text[:100] + str(img_url)).encode('utf-8')).hexdigest()
+
+            if msg_id not in seen_jobs:
+                fb_msg = f"📢 WhatsApp හරහා ලැබුණු රැකියා පුවතක්! \n\n{text}\n{HASHTAGS}"
+                if post_to_facebook(fb_msg, img_url):
+                    print(f"🎯 WhatsApp පෝස්ට් එක සාර්ථකයි! (ID: {msg_id[:6]})")
+                    save_new_job(msg_id)
+                    seen_jobs.append(msg_id)
+                    found_count += 1
+                time.sleep(15)
+
+        if found_count == 0:
+            print("⚠️ අලුත් පෝස්ට් කිසිවක් WhatsApp එකේ තිබුණේ නැත.")
+
+    except Exception as e:
+        # WhatsApp එකේ මොන අවුල ගියත් බොට් නතර වෙන්නේ නෑ!
+        print(f"❌ WhatsApp Scraper Error: {str(e)}")
 
 if __name__ == "__main__":
     options = Options()
-    options.add_argument("--headless")
+    # මේ අලුත් 'headless=new' එක Meta ලට අඳුරගන්න අමාරුයි
+    options.add_argument("--headless=new") 
     options.add_argument("--no-sandbox")
+    options.add_argument("--disable-dev-shm-usage")
+    options.add_argument("--window-size=1920,1080")
+    
+    # --- Anti-Bot Stealth කෑලි ටික ---
+    options.add_argument("--disable-blink-features=AutomationControlled")
+    options.add_experimental_option("excludeSwitches", ["enable-automation"])
+    options.add_experimental_option('useAutomationExtension', False)
+    options.add_argument("--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+    
     driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
+    
+    # බ්‍රවුසරේ "bot" කියන ලේබල් එක මකලා දානවා
+    driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
+
     seen_jobs = load_seen_jobs()
     
-    # 🦾 මෙන්න මචං උඹේ සයිට් 9ම නූලටම!
     sites = [
         ("JobHunder", "https://www.jobhunder.com/"),
         ("XpressJobs", "https://xpress.jobs/jobs"),
@@ -159,8 +193,13 @@ if __name__ == "__main__":
     ]
     
     try:
-        for name, url in sites: scrape_site(driver, url, name, seen_jobs)
+        # පියවර 1: මුලින්ම සයිට් 9ම පරීක්ෂා කරනවා (100% ආරක්ෂිතයි)
+        for name, url in sites: 
+            scrape_site(driver, url, name, seen_jobs)
+            
+        # පියවර 2: සයිට් 9ම ඉවර වුණාට පස්සේ අන්තිමටම WhatsApp එකට යනවා
         scrape_whatsapp_channel(driver, "https://whatsapp.com/channel/0029Va9Xpxx8PgsOtsAbFn45", seen_jobs)
+        
     finally:
         driver.quit()
         print("\n🏁 සියලුම පරීක්ෂාවන් අවසන්! 🦾🔥")
