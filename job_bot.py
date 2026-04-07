@@ -40,19 +40,37 @@ def post_to_facebook(message, image_url=None):
     except: return False
 
 # --- IMAGE SCRAPER ---
+ # --- IMAGE SCRAPER ---
 def get_job_flyer(driver, job_link):
     try:
         driver.get(job_link)
         time.sleep(7)
         imgs = driver.find_elements(By.TAG_NAME, "img")
         best_img, max_w = None, 0
+        
+        # 1. මේ වචන තියෙන රූප (images) අයින් කරනවා
+        bad_keywords = ["logo", "banner", "whatsapp", "ad", "ads", "sponsored", "footer", "header", "icon", "avatar"]
+        
         for img in imgs:
             src = img.get_attribute("src")
-            if not src or "logo" in src.lower(): continue
+            if not src: continue
+            
+            # අකුරු සේරම simple කරලා බලනවා bad_keywords තියෙනවද කියලා
+            src_lower = src.lower()
+            if any(bad_word in src_lower for bad_word in bad_keywords): 
+                continue
+                
             try:
+                # රූපයේ පළල (Width) සහ උස (Height) ගන්නවා
                 w = int(img.get_attribute("naturalWidth") or 0)
-                if w > max_w and w > 350: max_w, best_img = w, src
+                h = int(img.get_attribute("naturalHeight") or 0)
+                
+                # 2. පළල 350ට වඩා සහ උස 300ට වඩා වැඩිද බලනවා (WhatsApp banners අයින් වෙන්න)
+                if w > 350 and h > 300: 
+                    if w > max_w: 
+                        max_w, best_img = w, src
             except: continue
+            
         return best_img
     except: return None
 
